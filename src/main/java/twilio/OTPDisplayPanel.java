@@ -166,7 +166,7 @@ public class OTPDisplayPanel extends JPanel {
                         Twilio OTP integration for BurpSuite Automation
                     </p>
                     <div style='text-align: left; margin-top: 10px; font-size: 12px;'>
-                        <b>Created by:</b> Ganesh Babu<br><br>
+                       <br>
                         Twilio OTP Authenticate utilizes session handling rules to provide a Twilio OTP code to outgoing requests.<br>
                         It can be used in both <b>BurpSuite Pro</b> and <b>BurpSuite Community edition</b>.
                     </div>
@@ -174,13 +174,14 @@ public class OTPDisplayPanel extends JPanel {
                      <div style='margin-top: 10px; font-size: 12px;'>
                         <h3 style='text-align: left; font-size: 14px; color: #000;'>How to Configure:</h3>
                          <ol>
-                              <li>Load the extension into <b>Extensions > Installed > Add > Extension Type: Java > Choose the jar file</b></li>
+                              <li>Load the extension into <b>Extensions > Installed > Add > Extension Type: Java > Choose the jar file</b> (Ignore any errors on load)</li>
+                              <li> Go to <b>Twilio OTP Authenticate</b> UI interface - Save <b>Twilio Settings</b> tab with Account SID, Auth Token, From Number, To Number. In <b>Configure</b> tab set Rule Type, Parameter Name and click <b>Generate Config</b> button.</li>
                               <li>Go to <b>Settings > Search > Sessions</b></li>
                               <li>Under <b>Session handling rules</b>, go to <b>Add > Rule actions > Add > Invoke a Burp extension</b>,<br>
                                   select '<b>Twilio OTP Authenticate</b>' from the dropdown list available and click OK.</li>
                               <li>Click across to the <b>Scope</b> tab, ensuring that the <b>Tools scope > Scanner, Repeater</b> box is checked.</li>
-                              <li>Configure the URL scope appropriately.</li>
-                              <li>Click OK.</li>
+                              <li>Configure the URL scope appropriately. Click OK.</li>
+                              <li>Go to <b>Extensions</b> > <b>Installed</b> and reload the extension (uncheck the Twilio OTP Authenticate "Loaded" checkbox, and click it again)</li>
                               <li>Now you can perform security testing in Burp Suite Professional.</li>
                          </ol>
                      </div>
