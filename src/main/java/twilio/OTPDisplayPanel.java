@@ -1,12 +1,12 @@
 package twilio;
 
 import burp.api.montoya.MontoyaApi;
-import burp.api.montoya.persistence.Preferences;
 import utils.ConfigurationParser;
 import utils.RuleType;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.prefs.Preferences;
 
 public class OTPDisplayPanel extends JPanel {
     private final MontoyaApi api;
@@ -26,11 +26,11 @@ public class OTPDisplayPanel extends JPanel {
     private final ConfigurationParser configParser;
 
     public OTPDisplayPanel(MontoyaApi api, OTPHandler otpHandler, ConfigurationParser configParser) {
-        this.api = api;
         this.otpHandler = otpHandler;
+        this.api = api;
         this.configParser = configParser;
 
-        preferences = api.persistence().preferences();
+        preferences = Preferences.userRoot().node("TwilioOTPAuthenticate");
 
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -181,7 +181,7 @@ public class OTPDisplayPanel extends JPanel {
                               <li>Click across to the <b>Scope</b> tab, ensuring that the <b>Tools scope > Scanner, Repeater</b> box is checked.</li>
                               <li>Configure the URL scope appropriately.</li>
                               <li>Click OK.</li>
-                              <li>Now you can perform security testing in BurpSuite Professional/BurpSuite Community edition.</li>
+                              <li>Now you can perform security testing in Burp Suite Professional.</li>
                          </ol>
                      </div>
                 </body>
@@ -233,14 +233,13 @@ public class OTPDisplayPanel extends JPanel {
     }
 
     private void fetchAndUpdateOTP() {
-        statusLabel.setText("Status: Fetching OTP...");
-        otpHandler.getLatestOTPAsync()
-                .thenAccept(this::updateOtpDisplay)
-                .exceptionally(ex -> {
-                    statusLabel.setText("Status: Error fetching OTP.");
-                    api.logging().logToError("Error fetching OTP: " + ex.getMessage());
-                    return null;
-                });
+        try {
+            String latestOtp = otpHandler.getLatestOTP();
+            updateOtpDisplay(latestOtp);
+            statusLabel.setText("Status: OTP fetched successfully.");
+        } catch (Exception e) {
+            statusLabel.setText("Status: Error fetching OTP.");
+        }
     }
 
     public void updateOtpDisplay(String otp) {
@@ -293,11 +292,10 @@ public class OTPDisplayPanel extends JPanel {
     }
 
     private void savePreference(String key, String value) {
-        preferences.setString(key, value);
+        preferences.put(key, value);
     }
 
     private String loadPreference(String key, String defaultValue) {
-        String value = preferences.getString(key);
-        return (value != null) ? value : defaultValue;
+        return preferences.get(key, defaultValue);
     }
 }
