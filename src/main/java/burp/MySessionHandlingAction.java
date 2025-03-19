@@ -49,7 +49,7 @@ public class MySessionHandlingAction implements SessionHandlingAction {
         String latestOtp;
 
         try {
-            latestOtp = otpHandler.getLatestOTP();
+            latestOtp = otpHandler.getLatestOTPAsync().get();
             api.logging().logToOutput("Generated OTP: " + latestOtp);
         } catch (Exception e) {
             api.logging().logToError("Failed to generate OTP: " + e.getMessage());

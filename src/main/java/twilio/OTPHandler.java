@@ -1,11 +1,12 @@
 package twilio;
 
 import burp.api.montoya.MontoyaApi;
+import burp.api.montoya.persistence.Preferences;
 import com.twilio.Twilio;
 import com.twilio.base.ResourceSet;
 import com.twilio.rest.api.v2010.account.Message;
 
-import java.util.prefs.Preferences;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,19 +29,19 @@ public class OTPHandler {
 
     public OTPHandler(MontoyaApi api) {
         this.api = api;
-        this.preferences = Preferences.userRoot().node("TwilioOTPAuthenticate");
+        this.preferences = api.persistence().preferences();
         this.otpRegex = Pattern.compile("\\b\\d{4,6}\\b");
         loadSettings();
     }
 
     // Load Twilio settings from Preferences
     private void loadSettings() {
-        this.accountSid = preferences.get(PREF_ACCOUNT_SID, "");
-        this.authToken = preferences.get(PREF_AUTH_TOKEN, "");
-        this.fromNumber = preferences.get(PREF_FROM_NUMBER, "");
-        this.toNumber = preferences.get(PREF_TO_NUMBER, "");
+        this.accountSid = preferences.getString(PREF_ACCOUNT_SID);
+        this.authToken = preferences.getString(PREF_AUTH_TOKEN);
+        this.fromNumber = preferences.getString(PREF_FROM_NUMBER);
+        this.toNumber = preferences.getString(PREF_TO_NUMBER);
 
-        if (!accountSid.isEmpty() && !authToken.isEmpty()) {
+        if (accountSid != null && authToken != null) {
             try {
                 Twilio.init(this.accountSid, this.authToken);
                 api.logging().logToOutput("Twilio client initialized successfully with saved settings.");
@@ -58,10 +59,10 @@ public class OTPHandler {
         this.toNumber = toNumber;
 
         // Save settings to preferences
-        preferences.put(PREF_ACCOUNT_SID, accountSid);
-        preferences.put(PREF_AUTH_TOKEN, authToken);
-        preferences.put(PREF_FROM_NUMBER, fromNumber);
-        preferences.put(PREF_TO_NUMBER, toNumber);
+        preferences.setString(PREF_ACCOUNT_SID, accountSid);
+        preferences.setString(PREF_AUTH_TOKEN, authToken);
+        preferences.setString(PREF_FROM_NUMBER, fromNumber);
+        preferences.setString(PREF_TO_NUMBER, toNumber);
 
         try {
             Twilio.init(this.accountSid, this.authToken);
@@ -73,43 +74,39 @@ public class OTPHandler {
     }
 
     // Fetch the latest OTP from Twilio messages
-    public String getLatestOTP() throws Exception {
-        if (accountSid.isEmpty() || authToken.isEmpty() || fromNumber.isEmpty() || toNumber.isEmpty()) {
+    public CompletableFuture<String> getLatestOTPAsync() {
+        if (accountSid == null || authToken == null || fromNumber == null || toNumber == null) {
             throw new IllegalStateException("Twilio settings are not configured.");
         }
 
-        try {
-            api.logging().logToOutput("Fetching messages from Twilio...");
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                api.logging().logToOutput("Fetching messages from Twilio...");
 
-            Thread.sleep(2000);
+                ResourceSet<Message> messages = Message.reader()
+                        .setFrom(new com.twilio.type.PhoneNumber(fromNumber))
+                        .setTo(new com.twilio.type.PhoneNumber(toNumber))
+                        .limit(1)
+                        .read();
 
-            ResourceSet<Message> messages = Message.reader()
-                    .setFrom(new com.twilio.type.PhoneNumber(fromNumber))
-                    .setTo(new com.twilio.type.PhoneNumber(toNumber))
-                    .limit(1)
-                    .read();
+                if (messages.iterator().hasNext()) {
+                    Message message = messages.iterator().next();
+                    api.logging().logToOutput("Message retrieved: " + message.getBody());
 
-            if (messages.iterator().hasNext()) {
-                Message message = messages.iterator().next();
-                api.logging().logToOutput("Message retrieved: " + message.getBody());
-
-                Matcher matcher = otpRegex.matcher(message.getBody());
-                if (matcher.find()) {
-                    String otp = matcher.group();
-                    api.logging().logToOutput("OTP retrieved: " + otp);
-                    return otp;
+                    Matcher matcher = otpRegex.matcher(message.getBody());
+                    if (matcher.find()) {
+                        String otp = matcher.group();
+                        api.logging().logToOutput("OTP retrieved: " + otp);
+                        return otp;
+                    }
                 }
+
+                throw new Exception("No valid OTP found in recent messages.");
+
+            } catch (Exception e) {
+                api.logging().logToError("Failed to retrieve OTP: " + e.getMessage());
+                throw new RuntimeException(e);
             }
-
-            throw new Exception("No valid OTP found in recent messages.");
-
-        } catch (InterruptedException e) {
-            api.logging().logToError("Thread interrupted during wait time");
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (Exception e) {
-            api.logging().logToError("Failed to retrieve OTP: " + e.getMessage());
-            throw e;
-        }
+        });
     }
 }
