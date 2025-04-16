@@ -46,11 +46,28 @@ public class MySessionHandlingAction implements SessionHandlingAction {
         }
 
         HttpRequest request = actionData.request();
+
+        boolean shouldFetchOtp = switch (ruleType) {
+            case HEADER -> isParameterNamePresentInHeaders(request, parameterName);
+            case URL, COOKIE, BODY_PARAM ->
+                    isParameterNamePresentInParameters(request, ruleType.toParameterType(), parameterName);
+            case BODY_REGEX -> {
+                if (replacementPattern == null) {
+                    api.logging().logToError("Replacement pattern not initialized.");
+                    yield false;
+                }
+                yield replacementPattern.matcher(request.bodyToString()).find();
+            }
+        };
+        if (!shouldFetchOtp){
+            //api.logging().logToOutput("Skipping OTP fetch: Parameter not found in request.");
+            return ActionResult.actionResult(request);
+                }
         String latestOtp;
 
         try {
             latestOtp = otpHandler.getLatestOTPAsync().get();
-            api.logging().logToOutput("Generated OTP: " + latestOtp);
+        //    api.logging().logToOutput("Generated OTP: " + latestOtp);
         } catch (Exception e) {
             api.logging().logToError("Failed to generate OTP: " + e.getMessage());
             return ActionResult.actionResult(request);
@@ -58,12 +75,10 @@ public class MySessionHandlingAction implements SessionHandlingAction {
 
         HttpRequest newRequest = switch (ruleType) {
             case HEADER -> updateOrAddTokenInHeader(request, parameterName, latestOtp);
-            case URL -> updateOrAddTokenInParameter(request, HttpParameterType.URL, parameterName, latestOtp);
-            case COOKIE -> updateOrAddTokenInParameter(request, HttpParameterType.COOKIE, parameterName, latestOtp);
-            case BODY_PARAM -> updateOrAddTokenInParameter(request, HttpParameterType.BODY, parameterName, latestOtp);
+            case URL, COOKIE, BODY_PARAM ->
+                    updateOrAddTokenInParameter(request, ruleType.toParameterType(), parameterName, latestOtp);
             case BODY_REGEX -> updateTokenInBody(request, parameterName, latestOtp, replacementPattern);
         };
-
         return ActionResult.actionResult(newRequest);
     }
 
@@ -91,7 +106,7 @@ public class MySessionHandlingAction implements SessionHandlingAction {
 
         if (matcher.find()) {
             String updatedBody = matcher.replaceFirst("\"" + parameterName + "\":\"" + latestOtp + "\"");
-            api.logging().logToOutput("Updated request body with OTP: " + updatedBody);
+        //    api.logging().logToOutput("Updated request body with OTP: " + updatedBody);
             return request.withBody(updatedBody);
         } else {
             api.logging().logToError("Parameter '" + parameterName + "' not found in the body.");
