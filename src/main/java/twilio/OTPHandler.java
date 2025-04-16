@@ -76,8 +76,6 @@ public class OTPHandler {
 
         return CompletableFuture.supplyAsync(() -> {
             try {
-                api.logging().logToOutput("Fetching messages from Twilio...");
-
                 String credentials = accountSid + ":" + authToken;
                 String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes());
 
@@ -97,15 +95,12 @@ public class OTPHandler {
                     JsonNode rootNode = objectMapper.readTree(response.body().toString());
                     JsonNode messages = rootNode.path("messages");
 
-                    if (messages.isArray() && messages.size() > 0) {
+                    if (messages.isArray() && !messages.isEmpty()) {
                         String body = messages.get(0).path("body").asText();
-                        api.logging().logToOutput("Message retrieved: " + body);
 
                         Matcher matcher = otpRegex.matcher(body);
                         if (matcher.find()) {
-                            String otp = matcher.group();
-                            api.logging().logToOutput("OTP retrieved: " + otp);
-                            return otp;
+                            return matcher.group();
                         }
                     }
                 } else {
