@@ -1,0 +1,19 @@
+<p>This extension, TwilioOTPAuthenticate, makes use of session handling rules to furnish outgoing requests with a Twilio OTP code and is compatible with BurpSuite Pro.</p>
+
+<h2>Features</h2>
+
+<p>TwilioOTPAuthenticate provides a smooth and seamless way to include a Twilio OTP code in your outgoing requests. This is achieved with the session handling rules that the extension leverages. However, bear in mind that the extension is designed to work with BurpSuite Pro.</p>
+
+<h2>Usage</h2>
+
+<p>To start using TwilioOTPAuthenticate, follow the steps below:</p>
+
+<ol>
+  <li>Go to the Twilio OTP Authenticate UI interface, save the Twilio Settings tab with Account SID, Auth Token, From Number, To Number. In the Configure tab, set Rule Type and Parameter Name, then click on the Generate Config button.</li>
+  <li>Go to Settings -&gt; Search -&gt; Sessions</li>
+  <li>In Session handling rules, add a rule action to Invoke a Burp extension, select Twilio OTP Authenticate from the dropdown list.</li>
+  <li>Switch over to the Scope tab, making sure that the Tools scope -&gt; Scanner, Repeater box is checked.</li>
+  <li>Configure your URL scope to match your needs and save.</li>
+  <li>Go to Extensions -&gt; Installed and reload the Twilio OTP Authenticate extension by unchecking and re-checking the Loaded checkbox.</li>
+  <li>With these steps, you can now perform your security tests in Burp Suite Professional.</li>
+</ol>
