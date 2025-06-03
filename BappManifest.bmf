@@ -4,10 +4,10 @@ Name: Twilio OTP Authenticator
 RepoName: twilio-otp-authenticator
 ScreenVersion: 1.0.0
 SerialVersion: 1
-MinPlatformVersion: 0
+MinPlatformVersion: 4
 ProOnly: False
-Author: PortSwigger
-ShortDescription: The extension provides Twilio OTP code to outgoing requests using session handling rules in BurpSuite Pro.
+Author: Ganesh Babu
+ShortDescription: Handle Twilio OTP authentication using session handling rules.
 EntryPoint: ./TwilioOTP-1.0-SNAPSHOT.jar
 BuildCommand: ./gradlew jar
 SupportedProducts: Pro, Community
