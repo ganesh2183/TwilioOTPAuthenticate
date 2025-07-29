@@ -2,10 +2,14 @@ package twilio;
 
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.persistence.Preferences;
-import com.twilio.Twilio;
-import com.twilio.base.ResourceSet;
-import com.twilio.rest.api.v2010.account.Message;
+import burp.api.montoya.http.HttpService;
+import burp.api.montoya.http.message.requests.HttpRequest;
+import burp.api.montoya.http.message.responses.HttpResponse;
+import burp.api.montoya.http.HttpMode;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,8 +18,9 @@ public class OTPHandler {
     private final MontoyaApi api;
     private final Preferences preferences;
     private final Pattern otpRegex;
+    private final ObjectMapper objectMapper;
 
-    // Declare Twilio settings as Strings
+    // Twilio settings
     private String accountSid;
     private String authToken;
     private String fromNumber;
@@ -31,6 +36,7 @@ public class OTPHandler {
         this.api = api;
         this.preferences = api.persistence().preferences();
         this.otpRegex = Pattern.compile("\\b\\d{4,6}\\b");
+        this.objectMapper = new ObjectMapper();
         loadSettings();
     }
 
@@ -41,13 +47,8 @@ public class OTPHandler {
         this.fromNumber = preferences.getString(PREF_FROM_NUMBER);
         this.toNumber = preferences.getString(PREF_TO_NUMBER);
 
-        if (accountSid != null && authToken != null) {
-            try {
-                Twilio.init(this.accountSid, this.authToken);
-                api.logging().logToOutput("Twilio client initialized successfully with saved settings.");
-            } catch (Exception e) {
-                api.logging().logToError("Failed to initialize Twilio client with saved settings: " + e.getMessage());
-            }
+        if (accountSid == null || authToken == null || fromNumber == null || toNumber == null) {
+            api.logging().logToError("Twilio settings are not fully configured.");
         }
     }
 
@@ -64,16 +65,10 @@ public class OTPHandler {
         preferences.setString(PREF_FROM_NUMBER, fromNumber);
         preferences.setString(PREF_TO_NUMBER, toNumber);
 
-        try {
-            Twilio.init(this.accountSid, this.authToken);
-            api.logging().logToOutput("Twilio client initialized successfully with updated settings.");
-        } catch (Exception e) {
-            api.logging().logToError("Failed to initialize Twilio client: " + e.getMessage());
-            throw new RuntimeException(e);
-        }
+        api.logging().logToOutput("Twilio settings updated successfully.");
     }
 
-    // Fetch the latest OTP from Twilio messages
+    // Fetch the latest OTP from Twilio messages using Montoya API
     public CompletableFuture<String> getLatestOTPAsync() {
         if (accountSid == null || authToken == null || fromNumber == null || toNumber == null) {
             throw new IllegalStateException("Twilio settings are not configured.");
@@ -81,24 +76,35 @@ public class OTPHandler {
 
         return CompletableFuture.supplyAsync(() -> {
             try {
-                api.logging().logToOutput("Fetching messages from Twilio...");
+                String credentials = accountSid + ":" + authToken;
+                String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes());
 
-                ResourceSet<Message> messages = Message.reader()
-                        .setFrom(new com.twilio.type.PhoneNumber(fromNumber))
-                        .setTo(new com.twilio.type.PhoneNumber(toNumber))
-                        .limit(1)
-                        .read();
+                HttpService twilioService = HttpService.httpService("api.twilio.com", 443, true);
+                String path = String.format("/2010-04-01/Accounts/%s/Messages.json?From=%s&To=%s&PageSize=1", accountSid, fromNumber, toNumber);
 
-                if (messages.iterator().hasNext()) {
-                    Message message = messages.iterator().next();
-                    api.logging().logToOutput("Message retrieved: " + message.getBody());
+                HttpRequest request = HttpRequest.httpRequest()
+                        .withService(twilioService)
+                        .withMethod("GET")
+                        .withPath(path)
+                        .withAddedHeader("Host", "api.twilio.com")
+                        .withAddedHeader("Authorization", "Basic " + encodedCredentials);
 
-                    Matcher matcher = otpRegex.matcher(message.getBody());
-                    if (matcher.find()) {
-                        String otp = matcher.group();
-                        api.logging().logToOutput("OTP retrieved: " + otp);
-                        return otp;
+                HttpResponse response = api.http().sendRequest(request, HttpMode.HTTP_1).response();
+
+                if (response.statusCode() == 200) {
+                    JsonNode rootNode = objectMapper.readTree(response.body().toString());
+                    JsonNode messages = rootNode.path("messages");
+
+                    if (messages.isArray() && !messages.isEmpty()) {
+                        String body = messages.get(0).path("body").asText();
+
+                        Matcher matcher = otpRegex.matcher(body);
+                        if (matcher.find()) {
+                            return matcher.group();
+                        }
                     }
+                } else {
+                    api.logging().logToError("Failed to retrieve messages: " + response.statusCode() + " " + response.reasonPhrase());
                 }
 
                 throw new Exception("No valid OTP found in recent messages.");

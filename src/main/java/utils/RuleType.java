@@ -1,4 +1,5 @@
 package utils;
+import burp.api.montoya.http.message.params.HttpParameterType;
 
 public enum RuleType
 {
@@ -6,5 +7,14 @@ public enum RuleType
     URL,
     COOKIE,
     BODY_PARAM,
-    BODY_REGEX
+    BODY_REGEX;
+
+    public HttpParameterType toParameterType() {
+        return switch (this) {
+            case URL -> HttpParameterType.URL;
+            case COOKIE -> HttpParameterType.COOKIE;
+            case BODY_PARAM -> HttpParameterType.BODY;
+            default -> throw new UnsupportedOperationException("RuleType '" + this + "' cannot be converted to HttpParameterType");
+        };
+    }
 }
