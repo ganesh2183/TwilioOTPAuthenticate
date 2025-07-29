@@ -1,3 +1,4 @@
+// OTPDisplayPanel.java
 package twilio;
 
 import burp.api.montoya.MontoyaApi;
@@ -7,6 +8,11 @@ import utils.RuleType;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class OTPDisplayPanel extends JPanel {
     private final MontoyaApi api;
@@ -24,6 +30,7 @@ public class OTPDisplayPanel extends JPanel {
 
     private final OTPHandler otpHandler;
     private final ConfigurationParser configParser;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public OTPDisplayPanel(MontoyaApi api, OTPHandler otpHandler, ConfigurationParser configParser) {
         this.api = api;
@@ -38,7 +45,10 @@ public class OTPDisplayPanel extends JPanel {
         otpField = new JTextField(20);
         otpField.setEditable(false);
         otpField.setFont(new Font("Arial", Font.PLAIN, 16));
-        otpField.setBackground(Color.LIGHT_GRAY);
+        otpField.setBackground(new Color(211, 211, 211));
+        otpField.setForeground(Color.BLACK);
+        otpField.setCaretColor(Color.BLACK);
+        otpField.setBorder(BorderFactory.createLineBorder(new Color(169, 169, 169)));
 
         accountSidField = new JPasswordField(loadPreference("accountSid", ""), 25);
         authTokenField = new JPasswordField(loadPreference("authToken", ""), 25);
@@ -49,27 +59,32 @@ public class OTPDisplayPanel extends JPanel {
         ruleTypeComboBox.setSelectedItem(RuleType.valueOf(loadPreference("ruleType", "HEADER")));
         parameterNameField = new JTextField(loadPreference("parameterName", ""), 20);
 
-        JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.addTab("Fetch OTP", createMainPanel());
-        tabbedPane.addTab("Twilio Settings", createSettingsPanel());
-        tabbedPane.addTab("Configure", createConfigurePanel());
-        tabbedPane.addTab("About", createAboutPanel());
+        JPanel unifiedPanel = new JPanel();
+        unifiedPanel.setLayout(new BoxLayout(unifiedPanel, BoxLayout.Y_AXIS));
+        unifiedPanel.add(createSectionPanel("Fetch OTP", createMainPanel()));
+        unifiedPanel.add(createSectionPanel("Twilio Settings", createSettingsPanel()));
+        unifiedPanel.add(createSectionPanel("Configure", createConfigurePanel()));
 
-        add(tabbedPane, BorderLayout.CENTER);
+        add(unifiedPanel, BorderLayout.CENTER);
         add(createFooter(), BorderLayout.SOUTH);
+    }
+
+    private JPanel createSectionPanel(String title, JPanel content) {
+        JPanel sectionPanel = new JPanel(new BorderLayout());
+        sectionPanel.setBorder(BorderFactory.createTitledBorder(title));
+        sectionPanel.add(content, BorderLayout.CENTER);
+        return sectionPanel;
     }
 
     private JPanel createMainPanel() {
         JPanel mainPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(5, 5, 5, 5);
 
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.anchor = GridBagConstraints.EAST;
-        JLabel otpLabel = new JLabel("Latest OTP:");
-        otpLabel.setFont(new Font("Arial", Font.PLAIN, 16));
-        mainPanel.add(otpLabel, gbc);
+        mainPanel.add(new JLabel("Latest OTP:"), gbc);
 
         gbc.gridx = 1;
         mainPanel.add(otpField, gbc);
@@ -78,7 +93,6 @@ public class OTPDisplayPanel extends JPanel {
         gbc.gridy = 1;
         gbc.gridwidth = 2;
         JButton fetchOtpButton = new JButton("Fetch OTP");
-        fetchOtpButton.setFont(new Font("Arial", Font.BOLD, 14));
         fetchOtpButton.addActionListener(e -> fetchAndUpdateOTP());
         mainPanel.add(fetchOtpButton, gbc);
 
@@ -88,7 +102,7 @@ public class OTPDisplayPanel extends JPanel {
     private JPanel createSettingsPanel() {
         JPanel settingsPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
 
         gbc.gridx = 0;
@@ -118,9 +132,23 @@ public class OTPDisplayPanel extends JPanel {
         gbc.gridy++;
         gbc.gridx = 0;
         gbc.gridwidth = 2;
-        JButton saveButton = new JButton("Save Settings");
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton saveButton = new JButton("Save");
+        JButton importButton = new JButton("Import");
+        JButton exportButton = new JButton("Export");
+        JButton clearButton = new JButton("Clear");
+
         saveButton.addActionListener(e -> saveTwilioSettings());
-        settingsPanel.add(saveButton, gbc);
+        importButton.addActionListener(e -> importSettingsFromFile());
+        exportButton.addActionListener(e -> exportSettingsToFile());
+        clearButton.addActionListener(e -> clearTwilioSettings());
+
+        buttonPanel.add(saveButton);
+        buttonPanel.add(importButton);
+        buttonPanel.add(exportButton);
+        buttonPanel.add(clearButton);
+        settingsPanel.add(buttonPanel, gbc);
 
         return settingsPanel;
     }
@@ -128,7 +156,7 @@ public class OTPDisplayPanel extends JPanel {
     private JPanel createConfigurePanel() {
         JPanel configurePanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
 
         gbc.gridx = 0;
@@ -153,67 +181,22 @@ public class OTPDisplayPanel extends JPanel {
         return configurePanel;
     }
 
-    private JPanel createAboutPanel() {
-        JPanel aboutPanel = new JPanel(new BorderLayout());
-        aboutPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        // Content for the About tab, rendered as HTML
-        String aboutContent = """
-            <html>
-                <body style='font-family: Arial, sans-serif;'>
-                    <h1 style='text-align: center; color: #333;'>Twilio OTP Authenticate</h2>
-                    <p style='text-align: center; font-size: 12px; font-style: italic;'>
-                        Twilio OTP integration for BurpSuite Automation
-                    </p>
-                    <div style='text-align: left; margin-top: 10px; font-size: 12px;'>
-                        <b>Created by:</b> Ganesh Babu<br><br>
-                        Twilio OTP Authenticate utilizes session handling rules to provide a Twilio OTP code to outgoing requests.<br>
-                        It can be used in both <b>BurpSuite Pro</b> and <b>BurpSuite Community edition</b>.
-                    </div>
-                    <hr>
-                     <div style='margin-top: 10px; font-size: 12px;'>
-                        <h3 style='text-align: left; font-size: 14px; color: #000;'>How to Configure:</h3>
-                         <ol>
-                              <li>Load the extension into <b>Extensions > Installed > Add > Extension Type: Java > Choose the jar file</b></li>
-                              <li>Go to <b>Settings > Search > Sessions</b></li>
-                              <li>Under <b>Session handling rules</b>, go to <b>Add > Rule actions > Add > Invoke a Burp extension</b>,<br>
-                                  select '<b>Twilio OTP Authenticate</b>' from the dropdown list available and click OK.</li>
-                              <li>Click across to the <b>Scope</b> tab, ensuring that the <b>Tools scope > Scanner, Repeater</b> box is checked.</li>
-                              <li>Configure the URL scope appropriately.</li>
-                              <li>Click OK.</li>
-                              <li>Now you can perform security testing in BurpSuite Professional/BurpSuite Community edition.</li>
-                         </ol>
-                     </div>
-                </body>
-            </html>
-            """;
-
-        // Use JEditorPane for proper HTML rendering
-        JEditorPane editorPane = new JEditorPane();
-        editorPane.setContentType("text/html");
-        editorPane.setText(aboutContent);
-        editorPane.setEditable(false);
-        editorPane.setOpaque(false);
-
-        // Add JEditorPane to the panel
-        JScrollPane scrollPane = new JScrollPane(editorPane);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        aboutPanel.add(scrollPane, BorderLayout.CENTER);
-
-        return aboutPanel;
-    }
-
     private JPanel createFooter() {
         JPanel footerPanel = new JPanel(new BorderLayout());
         statusLabel = new JLabel("Status: Ready", SwingConstants.LEFT);
         statusLabel.setFont(new Font("Arial", Font.ITALIC, 12));
-        footerPanel.add(statusLabel, BorderLayout.CENTER);
+        footerPanel.add(statusLabel, BorderLayout.WEST);
+
+        JLabel creditLabel = new JLabel("Created by: Ganesh Babu", SwingConstants.RIGHT);
+        creditLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        footerPanel.add(creditLabel, BorderLayout.EAST);
+
         return footerPanel;
     }
 
     private JPanel createMaskedField(JPasswordField field) {
         JPanel fieldPanel = new JPanel(new BorderLayout());
-        field.setEchoChar((char) 0); // Unmask by default
+        field.setEchoChar((char) 0);
         fieldPanel.add(field, BorderLayout.CENTER);
 
         JButton toggleButton = new JButton("Hide");
@@ -228,7 +211,6 @@ public class OTPDisplayPanel extends JPanel {
             }
         });
         fieldPanel.add(toggleButton, BorderLayout.EAST);
-
         return fieldPanel;
     }
 
@@ -259,12 +241,65 @@ public class OTPDisplayPanel extends JPanel {
         savePreference("authToken", authToken);
         savePreference("fromNumber", fromNumber);
         savePreference("toNumber", toNumber);
+
         statusLabel.setText("Twilio settings saved successfully.");
         api.logging().logToOutput("Twilio settings updated and saved");
     }
 
-    private void saveConfigurationSettings() {
+    private void importSettingsFromFile() {
+        JFileChooser fileChooser = new JFileChooser();
+        int result = fileChooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) return;
 
+        try (InputStream input = new FileInputStream(fileChooser.getSelectedFile())) {
+            Map<String, String> map = objectMapper.readValue(input, Map.class);
+            accountSidField.setText(map.getOrDefault("accountSid", ""));
+            authTokenField.setText(map.getOrDefault("authToken", ""));
+            fromNumberField.setText(map.getOrDefault("fromNumber", ""));
+            toNumberField.setText(map.getOrDefault("toNumber", ""));
+            statusLabel.setText("Imported settings from file.");
+        } catch (IOException ex) {
+            statusLabel.setText("Failed to import settings.");
+            api.logging().logToError("Error importing settings: " + ex.getMessage());
+        }
+    }
+
+    private void exportSettingsToFile() {
+        JFileChooser fileChooser = new JFileChooser();
+        int result = fileChooser.showSaveDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) return;
+
+        Map<String, String> map = new HashMap<>();
+        map.put("accountSid", new String(accountSidField.getPassword()));
+        map.put("authToken", new String(authTokenField.getPassword()));
+        map.put("fromNumber", fromNumberField.getText().trim());
+        map.put("toNumber", toNumberField.getText().trim());
+
+        try (OutputStream output = new FileOutputStream(fileChooser.getSelectedFile())) {
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(output, map);
+            statusLabel.setText("Settings exported successfully.");
+        } catch (IOException ex) {
+            statusLabel.setText("Failed to export settings.");
+            api.logging().logToError("Error exporting settings: " + ex.getMessage());
+        }
+    }
+
+    private void clearTwilioSettings() {
+        accountSidField.setText("");
+        authTokenField.setText("");
+        fromNumberField.setText("");
+        toNumberField.setText("");
+
+        savePreference("accountSid", "");
+        savePreference("authToken", "");
+        savePreference("fromNumber", "");
+        savePreference("toNumber", "");
+
+        statusLabel.setText("Cleared Twilio credentials.");
+        api.logging().logToOutput("Twilio credentials cleared.");
+    }
+
+    private void saveConfigurationSettings() {
         Object selectedRuleTypeObj = ruleTypeComboBox.getSelectedItem();
 
         if (selectedRuleTypeObj == null) {
@@ -283,13 +318,8 @@ public class OTPDisplayPanel extends JPanel {
         }
 
         configParser.saveToPreferences(selectedRuleType, parameterName);
-
-        statusLabel.setText(
-                String.format("Config Saved: RuleType=%s, ParameterName=%s", selectedRuleType, parameterName)
-        );
-        api.logging().logToOutput(
-                String.format("Configuration Saved: RuleType=%s, ParameterName=%s", selectedRuleType, parameterName)
-        );
+        statusLabel.setText(String.format("Config Saved: RuleType=%s, ParameterName=%s", selectedRuleType, parameterName));
+        api.logging().logToOutput(String.format("Configuration Saved: RuleType=%s, ParameterName=%s", selectedRuleType, parameterName));
     }
 
     private void savePreference(String key, String value) {
