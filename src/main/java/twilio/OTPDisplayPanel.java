@@ -17,17 +17,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class OTPDisplayPanel extends JPanel {
     private final MontoyaApi api;
     private final Preferences preferences;
-
     private final JTextField otpField;
     private JLabel statusLabel;
-
     private final JPasswordField accountSidField;
     private final JPasswordField authTokenField;
     private final JTextField fromNumberField;
     private final JTextField toNumberField;
     private final JComboBox<RuleType> ruleTypeComboBox;
     private final JTextField parameterNameField;
-
     private final OTPHandler otpHandler;
     private final ConfigurationParser configParser;
     private final ObjectMapper objectMapper = new ObjectMapper();
