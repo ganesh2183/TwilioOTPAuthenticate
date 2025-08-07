@@ -1,0 +1,21 @@
+<p>This extension integrates with session handling rules to automatically insert a one-time password (OTP) generated via Twilio into outgoing HTTP requests. It is designed for workflows that require OTP verification, such as multi-factor authentication during automated security testing.</p>
+
+<h2>Features</h2>
+<ul>
+  <li>Generates Twilio-based OTPs dynamically</li>
+  <li>Injects OTPs into requests using session handling rules</li>
+  <li>Supports configurable parameter names and rule types</li>
+  <li>Customizable Twilio credentials and phone numbers</li>
+</ul>
+
+<h2>Usage</h2>
+<ol>
+  <li>Open the "Twilio OTP Authenticate" tab.</li>
+  <li>In the "Twilio Settings" tab, enter your <code class="InlineCode">Account SID</code>, <code class="InlineCode">Auth Token</code>, <code class="InlineCode">From Number</code>, and <code class="InlineCode">To Number</code>.</li>
+  <li>Switch to the "Configure" tab, select the desired rule type, set the OTP parameter name, and click <b>Generate Config</b>.</li>
+  <li>Go to "Settings -&gt; Sessions -&gt; Session Handling Rules" and add a new rule.</li>
+  <li>Under "Rule Actions", select "Invoke a Burp Extension" and choose "Twilio OTP Authenticator" from the dropdown.</li>
+  <li>Adjust the rule scope by checking the applicable tools (e.g., Scanner, Repeater) and configuring the target URL scope.</li>
+  <li>Reload the extension from the "Extensions" tab if necessary.</li>
+  <li>Proceed with testing; the extension will automatically inject valid OTPs into relevant requests.</li>
+</ol>
